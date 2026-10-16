@@ -26,6 +26,7 @@
 - Log in by scanning a QR code with your own UU Remote account. The Linux machine then appears in the
   official clients' device list and is used just like a Windows host.
 - **Host only.** To control other machines you still use the official Mac / Windows / mobile apps.
+  (An unofficial HarmonyOS viewer is under development in [harmonyos-viewer/](harmonyos-viewer/).)
 
 ## Features
 

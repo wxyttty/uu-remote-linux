@@ -1,0 +1,13 @@
+{
+  "modelVersion": "5.0.5",
+  "name": "uuremote-viewer",
+  "version": "0.1.0",
+  "description": "Unofficial NetEase UU Remote controller (viewer) for HarmonyOS. Not affiliated with NetEase.",
+  "main": "",
+  "author": "uu-remote-linux contributors",
+  "license": "GPL-3.0",
+  "dependencies": {},
+  "devDependencies": {
+    "@ohos/hypium": "1.0.21"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "string": [
+    { "name": "module_desc", "value": "UU远程主控客户端" },
+    { "name": "app_name", "value": "UU远程主控" },
+    { "name": "ability_desc", "value": "UU远程主控" },
+    { "name": "reason_internet", "value": "连接UU远程信令与云服务" }
+  ]
+}

@@ -22,6 +22,7 @@
 - 一个纯 Rust 写的 Linux 原生程序（不需要 Wine，也不需要任何 Windows/macOS 组件）。
 - 用你自己的 UU 远程账号扫码登录后，这台 Linux 会出现在官方客户端的设备列表里，用法和 Windows 被控端一样。
 - 只做**被控端**：用来控制别人的客户端，仍然是官方的 Mac / Windows / 手机 App。
+  （配套的非官方 HarmonyOS 主控端开发中，见 [harmonyos-viewer/](harmonyos-viewer/)。）
 
 ## 已实现的功能
 

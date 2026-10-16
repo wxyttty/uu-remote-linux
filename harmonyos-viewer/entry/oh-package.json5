@@ -1,0 +1,9 @@
+{
+  "name": "entry",
+  "version": "0.1.0",
+  "description": "UU Remote viewer entry module",
+  "main": "",
+  "author": "uu-remote-linux contributors",
+  "license": "GPL-3.0",
+  "dependencies": {}
+}
