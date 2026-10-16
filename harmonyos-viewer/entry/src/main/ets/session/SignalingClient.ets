@@ -162,52 +162,57 @@ export class SignalingClient {
    * binary event's header+attachment pair). Tasks chain on the previous
    * task's completion callback so the attachment never starts before the
    * header finishes, and heartbeat pongs cannot interleave between them.
+   *
+   * Each task CAPTURES the socket reference at enqueue time, so a local
+   * close() (which nulls this.ws before draining) cannot silently drop
+   * already-queued messages: they still send on the captured socket.
    */
   private sendQueue: Promise<void> = Promise.resolve();
 
-  private enqueueSend(task: () => Promise<void>): void {
+  private enqueueSend(task: (socket: webSocket.WebSocket) => Promise<void>): void {
     if (this.closing || this.closed) {
       return; // local close stops accepting new tasks
     }
-    this.sendQueue = this.sendQueue.then(task).catch(() => {
+    const socket = this.ws;
+    if (!socket) {
+      return;
+    }
+    this.sendQueue = this.sendQueue.then(() => {
+      if (this.closed) {
+        return Promise.resolve(); // terminal state: drop the task
+      }
+      return task(socket);
+    }).catch(() => {
       // a failed send surfaces via the socket error/close handler
     });
   }
 
-  private sendTextFrame(text: string): Promise<void> {
+  private sendTextFrame(socket: webSocket.WebSocket, text: string): Promise<void> {
     return new Promise<void>((resolve) => {
-      if (!this.ws) {
-        resolve();
-        return;
-      }
-      this.ws.send(text, () => {
+      socket.send(text, () => {
         resolve();
       });
     });
   }
 
   private send(text: string): void {
-    this.enqueueSend(() => this.sendTextFrame(text));
+    this.enqueueSend((socket) => this.sendTextFrame(socket, text));
   }
 
   private sendBinary(header: string, attachment: Uint8Array): void {
-    this.enqueueSend(() => {
+    this.enqueueSend((socket) => {
       const packet = new Uint8Array(attachment.length + 1);
       packet[0] = 0x04;
       packet.set(attachment, 1);
       // Header and attachment are ONE task: the attachment send starts only
       // after the header's completion callback fired.
-      return this.sendTextFrame(header).then(() => this.sendTextFrame2(packet));
+      return this.sendTextFrame(socket, header).then(() => this.sendBinaryFrame(socket, packet));
     });
   }
 
-  private sendTextFrame2(packet: Uint8Array): Promise<void> {
+  private sendBinaryFrame(socket: webSocket.WebSocket, packet: Uint8Array): Promise<void> {
     return new Promise<void>((resolve) => {
-      if (!this.ws) {
-        resolve();
-        return;
-      }
-      this.ws.send(packet.buffer, () => {
+      socket.send(packet.buffer, () => {
         resolve();
       });
     });

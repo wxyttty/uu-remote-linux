@@ -34,8 +34,9 @@ function stripTypes(code) {
     line = line.replace(/^(\s*)((?:const|let)\s+)?(?:private\s+)?(\w+):\s*[A-Za-z][\w.|\[\]]*(?:\s*\|\s*[A-Za-z][\w.|\[\]]*)?\s*(=|;)/, '$1$2$3$4');
     // constructor params "(a: Type, b: Type)"
     line = line.replace(/(\w+):\s*[A-Za-z][\w.|\[\]]*(\s*[,)])/g, '$1$2');
-    // param types with function shapes: "task: () => Promise<void>)" / "(a: (x: T) => U)"
+    // param types with function shapes: "task: () => Promise<void>)" / "task: (socket) => Promise<void>)"
     line = line.replace(/(\w+):\s*\(\)\s*=>\s*[A-Za-z][\w.|\[\]<>]*/g, '$1');
+    line = line.replace(/(\w+):\s*\(\w+\)\s*=>\s*[A-Za-z][\w.|\[\]<>]*/g, '$1');
     // "as Type" casts
     // "as Type" casts, including generics with commas: as Record<string, Object>[]
     line = line.replace(/\s+as\s+([A-Za-z][\w.]*)(?:<[^;)]*?>)?(\[\])?/g, '');
@@ -404,6 +405,52 @@ check(disconnectedBefore === disconnectedAfter, 'local close does not fire onDis
   c6.onText('2'); // still functional: queue not wedged
   await flush();
   check(sent.includes('3'), 'queue not wedged after a failed send');
+}
+
+// 14. Socket capture: a message already queued when close() is called must
+// still send on the captured socket (close nulls this.ws before draining).
+{
+  const localSent = [];
+  const localPending = [];
+  class LocalWs2 {
+    send(data, cb) {
+      localSent.push(typeof data === 'string' ? data : { binary: data });
+      localPending.push(() => { if (cb) cb(null); });
+    }
+    close() { localSent.push('__CLOSE__'); return Promise.resolve(); }
+    on() {}
+    connect(u, o, cb) { cb(null); }
+  }
+  const origCreate = mockWebSocket.createWebSocket;
+  mockWebSocket.createWebSocket = () => new LocalWs2();
+  const c7 = new SignalingClient('wss://sig.example', 'T', 'abcdef0123456789', 1920, 1080, 60, {
+    onRoomJoined: () => {}, onControlAck: () => {}, onSoac: () => {}, onDisconnected: () => {}
+  });
+  mockWebSocket.createWebSocket = origCreate;
+  c7.onText('0{}');
+  c7.onText('40');
+  c7.onText('431' + JSON.stringify([{ status: 'ok' }]));
+  // Drain the handshake only partially: leave the room_info send pending.
+  if (localPending.length > 0) localPending.shift()(); // resolve '40'
+  await new Promise((r) => setTimeout(r, 2));
+  // room_info send is now queued/pending; close() before it completes.
+  c7.close();
+  // Drain everything: the queued room_info must still have been SENT
+  // (recorded), then leave + 41, then close.
+  for (let i = 0; i < 100; i++) {
+    while (localPending.length > 0) {
+      localPending.shift()();
+      for (let j = 0; j < 10; j++) await Promise.resolve();
+    }
+    await new Promise((r) => setTimeout(r, 0));
+    if (localSent.includes('__CLOSE__')) break;
+  }
+  const roomInfoIdx = localSent.findIndex(s => s === '421["room_info"]');
+  const leaveIdx = localSent.indexOf('42["leave"]');
+  const discIdx = localSent.indexOf('41');
+  const closeIdx = localSent.indexOf('__CLOSE__');
+  check(roomInfoIdx >= 0, 'queued room_info still sent after close() (socket captured at enqueue)');
+  check(leaveIdx > roomInfoIdx && discIdx === leaveIdx + 1 && closeIdx > discIdx, 'close order preserved: room_info -> leave -> 41 -> close');
 }
 
 console.log(failures === 0 ? 'ALL PASS' : failures + ' FAILURES');
